@@ -13,9 +13,13 @@ import { EventEditor } from '@/components/EventEditor';
 import { Backlog } from '@/components/Backlog';
 import { CuisineFinder, ActivityFinder } from '@/components/Finders';
 import { Notifications, unreadCount } from '@/components/Notifications';
+import { HomeSummary } from '@/components/HomeSummary';
+import { NeedsYou } from '@/components/NeedsYou';
+import { involvesMe } from '@/lib/selectors';
 import { Avatar } from '@/components/ui';
 
 type Tab = 'plans' | 'backlog' | 'eat' | 'do';
+type Lens = 'all' | 'mine';
 
 export default function Home() {
   const [me, setMe] = useState<UserName | null>(null);
@@ -24,6 +28,7 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
   const [tab, setTab] = useState<Tab>('plans');
   const [calMode, setCalMode] = useState<'day' | 'week'>('day');
+  const [lens, setLens] = useState<Lens>('all');
   const [selectedDay, setSelectedDay] = useState(todayISO());
 
   const [editing, setEditing] = useState<CalEvent | null>(null);
@@ -32,6 +37,7 @@ export default function Home() {
   const [assignItem, setAssignItem] = useState<BacklogItem | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [needsOpen, setNeedsOpen] = useState(false);
 
   const onUnauthorized = useCallback(() => {
     setAuthed(false);
@@ -99,6 +105,10 @@ export default function Home() {
   }
 
   const c = USER_CONFIG[me];
+  const viewState =
+    lens === 'mine'
+      ? { ...state, events: state.events.filter((e) => involvesMe(e, me)) }
+      : state;
 
   return (
     <div className="min-h-screen max-w-md mx-auto relative">
@@ -127,7 +137,7 @@ export default function Home() {
 
       {/* Calendar controls */}
       {tab === 'plans' && (
-        <div className="px-4 pt-1">
+        <div className="px-4 pt-1 flex items-center justify-between gap-2">
           <div className="flex gap-1 bg-white rounded-full p-1 shadow-sm w-max">
             {(['day', 'week'] as const).map((m) => (
               <button
@@ -138,6 +148,20 @@ export default function Home() {
                 }`}
               >
                 {m}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 bg-white rounded-full p-1 shadow-sm w-max">
+            {(['all', 'mine'] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLens(l)}
+                className={`px-3 py-1.5 rounded-full text-[13px] font-semibold ${
+                  lens === l ? 'text-white' : 'text-slate-500'
+                }`}
+                style={lens === l ? { background: lens === 'mine' ? c.color : '#1a1a2e' } : {}}
+              >
+                {l === 'all' ? 'Everyone' : 'Mine'}
               </button>
             ))}
           </div>
@@ -152,9 +176,12 @@ export default function Home() {
 
       {/* Body */}
       <main>
+        {tab === 'plans' && (
+          <HomeSummary state={state} me={me} onOpenNeeds={() => setNeedsOpen(true)} />
+        )}
         {tab === 'plans' && calMode === 'day' && (
           <DayView
-            state={state}
+            state={viewState}
             me={me}
             dispatch={dispatch}
             day={selectedDay}
@@ -166,7 +193,7 @@ export default function Home() {
         )}
         {tab === 'plans' && calMode === 'week' && (
           <WeekView
-            state={state}
+            state={viewState}
             me={me}
             dispatch={dispatch}
             anchor={selectedDay}
@@ -243,6 +270,17 @@ export default function Home() {
         state={state}
         me={me}
         dispatch={dispatch}
+      />
+      <NeedsYou
+        open={needsOpen}
+        onClose={() => setNeedsOpen(false)}
+        state={state}
+        me={me}
+        dispatch={dispatch}
+        onEdit={(ev) => {
+          setNeedsOpen(false);
+          openEdit(ev);
+        }}
       />
       <Account
         open={accountOpen}
