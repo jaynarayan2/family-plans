@@ -259,7 +259,7 @@ export default function Home() {
           onClose={() => setEditorOpen(false)}
           me={me}
           dispatch={dispatch}
-          existing={editing}
+          existing={editing ? state.events.find((e) => e.id === editing.id) ?? editing : null}
           defaultDay={newAt?.day ?? selectedDay}
           defaultStart={newAt?.start}
         />
