@@ -149,12 +149,14 @@ function layoutLanes(evs: CalEvent[]): Map<string, Placed> {
 function TimelineEvent({
   ev,
   day,
+  me,
   placed,
   dispatch,
   onEdit,
 }: {
   ev: CalEvent;
   day: string;
+  me: UserName;
   placed: Placed;
   dispatch: (a: Action) => void;
   onEdit: (ev: CalEvent) => void;
@@ -162,6 +164,8 @@ function TimelineEvent({
   const meta = CATEGORY_META[ev.category];
   const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState<number | null>(null);
+  const [resizing, setResizing] = useState(false);
+  const [previewDur, setPreviewDur] = useState<number | null>(null);
   const [wiggle, setWiggle] = useState(false);
 
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,6 +174,12 @@ function TimelineEvent({
   const previewRef = useRef(0);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
+
+  const resStartY = useRef(0);
+  const resOrigDur = useRef(0);
+  const resPreviewRef = useRef(0);
+  const resizingRef = useRef(false);
+  const resMovedRef = useRef(false);
 
   useEffect(() => () => {
     if (holdTimer.current) clearTimeout(holdTimer.current);
@@ -228,12 +238,60 @@ function TimelineEvent({
     if (!movedRef.current) onEdit(ev);
   }
 
+  // ---- Resize (drag the bottom edge to change the end time) ----
+  function onResizeDown(e: React.PointerEvent) {
+    e.stopPropagation();
+    if (ev.fixed) return;
+    resMovedRef.current = false;
+    resStartY.current = e.clientY;
+    resOrigDur.current = ev.durationMin;
+    resPreviewRef.current = ev.durationMin;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+  }
+  function onResizeMove(e: React.PointerEvent) {
+    if (ev.fixed) return;
+    const dy = e.clientY - resStartY.current;
+    if (!resizingRef.current) {
+      if (Math.abs(dy) > 3) {
+        resMovedRef.current = true;
+        resizingRef.current = true;
+        setResizing(true);
+      } else return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const maxDur = DAY_MIN_END - minutesOf(ev.start);
+    const next = Math.max(30, Math.min(snap(resOrigDur.current + dy / PX_PER_MIN), maxDur));
+    resPreviewRef.current = next;
+    setPreviewDur(next);
+  }
+  function onResizeUp(e: React.PointerEvent) {
+    e.stopPropagation();
+    if (resizingRef.current) {
+      resizingRef.current = false;
+      setResizing(false);
+      const finalDur = resPreviewRef.current;
+      setPreviewDur(null);
+      if (finalDur !== ev.durationMin) {
+        dispatch({ type: 'updateEvent', id: ev.id, patch: { durationMin: finalDur }, by: me });
+      }
+      e.preventDefault();
+      return;
+    }
+    if (!resMovedRef.current) onEdit(ev);
+  }
+
   const curMin = dragging && preview != null ? preview : minutesOf(ev.start);
+  const curDur = resizing && previewDur != null ? previewDur : ev.durationMin;
   const top = (curMin - DAY_MIN_START) * PX_PER_MIN;
-  const height = Math.max(26, ev.durationMin * PX_PER_MIN - 3);
+  const height = Math.max(26, curDur * PX_PER_MIN - 3);
   const widthPct = 100 / placed.cols;
   const leftPct = placed.lane * widthPct;
-  const short = height < 42;
+  const short = height < 46;
+  const active = dragging || resizing;
+  const range = `${fmtTime(hhmmOf(curMin))} – ${fmtTime(hhmmOf((curMin + curDur) % 1440))}`;
 
   return (
     <div
@@ -247,40 +305,60 @@ function TimelineEvent({
         width: `calc(${widthPct}% - 4px)`,
         borderLeft: `4px solid ${meta.color}`,
         touchAction: 'none',
-        zIndex: dragging ? 40 : 1,
+        zIndex: active ? 40 : 1,
       }}
       className={`absolute rounded-xl bg-white shadow-sm border border-slate-100 overflow-hidden px-2 py-1 select-none pointer-events-auto ${
-        dragging ? 'ring-2 ring-ink scale-[1.02] shadow-xl' : ''
-      } ${wiggle ? 'animate-pop ring-2 ring-slate-300' : ''}`}
+        active ? 'ring-2 ring-ink shadow-xl' : ''
+      } ${dragging ? 'scale-[1.02]' : ''} ${wiggle ? 'animate-pop ring-2 ring-slate-300' : ''}`}
     >
-      {dragging && (
-        <div className="absolute -top-0 right-1 text-[10px] font-bold text-white bg-ink px-1.5 py-0.5 rounded-full">
-          {fmtTime(hhmmOf(curMin))} – {fmtTime(hhmmOf((curMin + ev.durationMin) % 1440))}
+      {active && (
+        <div className="absolute top-0 right-1 text-[10px] font-bold text-white bg-ink px-1.5 py-0.5 rounded-full z-10">
+          {range}
         </div>
       )}
-      <div className="flex items-center gap-1 text-[11px] text-slate-400 leading-none min-w-0">
-        <span>{meta.emoji}</span>
-        <span className="font-medium truncate">
-          {fmtTime(hhmmOf(curMin))} – {fmtTime(hhmmOf((curMin + ev.durationMin) % 1440))}
-        </span>
-        <span className="text-slate-300 shrink-0">· {fmtDur(ev.durationMin)}</span>
-        {ev.fixed && <span className="shrink-0">🔒</span>}
-      </div>
-      <div className={`font-bold leading-tight truncate ${short ? 'text-[12px]' : 'text-[13px] mt-0.5'}`}>
-        {ev.title}
-      </div>
-      {!short && (
-        <div className="flex items-center gap-1 mt-1">
-          {ev.status === 'pending' && (
-            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-              Pending
-            </span>
-          )}
-          {ev.participants.length > 0 && height > 60 && (
-            <span className="ml-auto">
-              <AvatarStack users={ev.participants} />
-            </span>
-          )}
+
+      {short ? (
+        // Compact single line so short (e.g. 30-min) events still show the name.
+        <div className="flex items-center gap-1 leading-tight min-w-0">
+          <span className="text-[11px] shrink-0">{meta.emoji}</span>
+          <span className="font-bold text-[12px] truncate">{ev.title}</span>
+          <span className="text-[10px] text-slate-400 shrink-0">{fmtTime(hhmmOf(curMin))}</span>
+          {ev.fixed && <span className="text-[10px] shrink-0">🔒</span>}
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-1 text-[11px] text-slate-400 leading-none min-w-0">
+            <span>{meta.emoji}</span>
+            <span className="font-medium truncate">{range}</span>
+            <span className="text-slate-300 shrink-0">· {fmtDur(curDur)}</span>
+            {ev.fixed && <span className="shrink-0">🔒</span>}
+          </div>
+          <div className="font-bold leading-tight truncate text-[13px] mt-0.5">{ev.title}</div>
+          <div className="flex items-center gap-1 mt-1">
+            {ev.status === 'pending' && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                Pending
+              </span>
+            )}
+            {ev.participants.length > 0 && height > 62 && (
+              <span className="ml-auto">
+                <AvatarStack users={ev.participants} />
+              </span>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Bottom handle: drag to extend/shorten (changes the end time) */}
+      {!ev.fixed && (
+        <div
+          onPointerDown={onResizeDown}
+          onPointerMove={onResizeMove}
+          onPointerUp={onResizeUp}
+          style={{ touchAction: 'none' }}
+          className="absolute left-0 right-0 bottom-0 h-3 flex items-end justify-center cursor-ns-resize"
+        >
+          <span className={`mb-[3px] h-1 w-6 rounded-full ${active ? 'bg-ink' : 'bg-slate-300'}`} />
         </div>
       )}
     </div>
@@ -383,6 +461,7 @@ export function DayView({
               key={e.id}
               ev={e}
               day={day}
+              me={me}
               placed={placement.get(e.id) ?? { lane: 0, cols: 1 }}
               dispatch={dispatch}
               onEdit={onEdit}
