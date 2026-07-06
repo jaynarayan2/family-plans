@@ -2,18 +2,20 @@
 
 import { useState } from 'react';
 import { UserName, USERS } from '@/lib/types';
-import { USER_CONFIG } from '@/lib/users';
+import { Action } from '@/lib/reducer';
 import { Sheet, Avatar } from './ui';
 
 export function Account({
   open,
   onClose,
   me,
+  dispatch,
   onLoggedOut,
 }: {
   open: boolean;
   onClose: () => void;
   me: UserName;
+  dispatch: (a: Action) => void;
   onLoggedOut: () => void;
 }) {
   const [mode, setMode] = useState<'menu' | 'change'>('menu');
@@ -21,12 +23,20 @@ export function Account({
   const [newPin, setNewPin] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   function reset() {
     setMode('menu');
     setCurrentPin('');
     setNewPin('');
     setMsg('');
+    setConfirmClear(false);
+  }
+
+  function clearAll() {
+    dispatch({ type: 'clearAll', by: me });
+    setConfirmClear(false);
+    setMsg('✓ All plans cleared');
   }
 
   async function changePin() {
@@ -131,6 +141,38 @@ export function Account({
           >
             🚪 Switch user / Sign out
           </button>
+
+          <div className="pt-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+            Danger zone
+          </div>
+          {!confirmClear ? (
+            <button
+              onClick={() => { setConfirmClear(true); setMsg(''); }}
+              className="w-full text-left px-4 py-3 rounded-xl bg-rose-50 text-rose-600 font-semibold text-[15px]"
+            >
+              🗑 Clear all plans
+            </button>
+          ) : (
+            <div className="rounded-xl bg-rose-50 p-3">
+              <div className="text-[13px] text-rose-700 mb-2 font-medium">
+                Delete <b>every</b> event and backlog item for the whole family? This can’t be undone.
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="flex-1 py-2 rounded-lg bg-white border border-slate-200 font-semibold text-[14px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="flex-1 py-2 rounded-lg bg-rose-600 text-white font-semibold text-[14px]"
+                >
+                  Yes, clear everything
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div>

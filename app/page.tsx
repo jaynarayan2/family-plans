@@ -286,6 +286,7 @@ export default function Home() {
         open={accountOpen}
         onClose={() => setAccountOpen(false)}
         me={me}
+        dispatch={dispatch}
         onLoggedOut={() => {
           setAccountOpen(false);
           setAuthed(false);

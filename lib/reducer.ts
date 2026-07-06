@@ -24,7 +24,8 @@ export type Action =
   | { type: 'addBacklog'; item: Omit<BacklogItem, 'id' | 'createdAt'> }
   | { type: 'deleteBacklog'; id: string }
   | { type: 'scheduleBacklog'; id: string; day: string; start: string }
-  | { type: 'markRead'; user: UserName };
+  | { type: 'markRead'; user: UserName }
+  | { type: 'clearAll'; by: UserName };
 
 function notify(state: AppState, text: string) {
   state.notifications.unshift({
@@ -143,6 +144,12 @@ export function reduce(prev: AppState, action: Action): AppState {
       state.notifications.forEach((n) => {
         if (!n.readBy.includes(action.user)) n.readBy.push(action.user);
       });
+      break;
+    }
+    case 'clearAll': {
+      state.events = [];
+      state.backlog = [];
+      state.notifications = [];
       break;
     }
   }
