@@ -11,9 +11,11 @@ import {
   USERS,
 } from '@/lib/types';
 import { Action } from '@/lib/reducer';
+import { guessCategory } from '@/lib/categorize';
 import { AvatarStack, Field, Sheet } from './ui';
 
 const CATS = Object.keys(CATEGORY_META) as Category[];
+const DURATIONS = [30, 45, 60, 90, 120, 150, 180, 240];
 
 export function Backlog({
   state,
@@ -26,27 +28,61 @@ export function Backlog({
   dispatch: (a: Action) => void;
   onSchedule: (item: BacklogItem) => void;
 }) {
-  const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<Category>('activity');
+  const [categoryTouched, setCategoryTouched] = useState(false);
   const [owner, setOwner] = useState<Owner>('shared');
   const [durationMin, setDurationMin] = useState(90);
+  const [notes, setNotes] = useState('');
 
-  function add() {
-    if (!title.trim()) return;
-    dispatch({
-      type: 'addBacklog',
-      item: {
-        title: title.trim(),
-        category,
-        owner,
-        participants: owner === 'shared' ? [...USERS] : [owner as UserName],
-        durationMin,
-        createdBy: me,
-      },
-    });
+  function openAdd() {
+    setEditingId(null);
     setTitle('');
-    setAdding(false);
+    setCategory('activity');
+    setCategoryTouched(false);
+    setOwner('shared');
+    setDurationMin(90);
+    setNotes('');
+    setOpen(true);
+  }
+
+  function openEdit(b: BacklogItem) {
+    setEditingId(b.id);
+    setTitle(b.title);
+    setCategory(b.category);
+    setCategoryTouched(true);
+    setOwner(b.owner);
+    setDurationMin(b.durationMin);
+    setNotes(b.notes ?? '');
+    setOpen(true);
+  }
+
+  function onTitleChange(v: string) {
+    setTitle(v);
+    if (!categoryTouched) {
+      const g = guessCategory(v);
+      if (g) setCategory(g);
+    }
+  }
+
+  function save() {
+    if (!title.trim()) return;
+    const participants = owner === 'shared' ? [...USERS] : [owner as UserName];
+    if (editingId) {
+      dispatch({
+        type: 'updateBacklog',
+        id: editingId,
+        patch: { title: title.trim(), category, owner, participants, durationMin, notes: notes.trim() || undefined },
+      });
+    } else {
+      dispatch({
+        type: 'addBacklog',
+        item: { title: title.trim(), category, owner, participants, durationMin, notes: notes.trim() || undefined, createdBy: me },
+      });
+    }
+    setOpen(false);
   }
 
   return (
@@ -54,14 +90,14 @@ export function Backlog({
       <div className="flex items-center justify-between mt-1 mb-1">
         <h2 className="text-xl font-extrabold">Backlog</h2>
         <button
-          onClick={() => setAdding(true)}
+          onClick={openAdd}
           className="text-[14px] font-semibold bg-ink text-white px-3 py-1.5 rounded-full"
         >
           + Idea
         </button>
       </div>
       <p className="text-[13px] text-slate-400 mb-3">
-        Things we might do. Tap <b>Schedule</b> then pick a time — or drag onto a day.
+        Things we might do. <b>Tap an idea to edit</b>, or Schedule it onto a day.
       </p>
 
       {state.backlog.length === 0 && (
@@ -81,14 +117,17 @@ export function Backlog({
               className="rounded-2xl bg-white border border-slate-100 shadow-sm p-3 flex items-center gap-3"
               style={{ borderLeft: `5px solid ${meta.color}` }}
             >
-              <div className="text-2xl">{meta.emoji}</div>
-              <div className="min-w-0 flex-1">
+              <button onClick={() => openEdit(b)} className="text-2xl">
+                {meta.emoji}
+              </button>
+              <button onClick={() => openEdit(b)} className="min-w-0 flex-1 text-left">
                 <div className="font-bold text-[15px] truncate">{b.title}</div>
                 <div className="text-[12px] text-slate-400 flex items-center gap-2">
                   <span>{meta.label}</span>
                   <span>· {b.durationMin >= 60 ? `${b.durationMin / 60}h` : `${b.durationMin}m`}</span>
+                  <span className="text-slate-300">· tap to edit</span>
                 </div>
-              </div>
+              </button>
               <AvatarStack users={b.participants} />
               <div className="flex flex-col gap-1">
                 <button
@@ -109,21 +148,24 @@ export function Backlog({
         })}
       </div>
 
-      <Sheet open={adding} onClose={() => setAdding(false)} title="Add to backlog">
+      <Sheet open={open} onClose={() => setOpen(false)} title={editingId ? 'Edit idea' : 'Add to backlog'}>
         <Field label="Idea">
           <input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             placeholder="e.g. Visit Toronto Islands"
             className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[15px] outline-none focus:border-ink"
           />
         </Field>
-        <Field label="Type">
+        <Field label={categoryTouched ? 'Type' : 'Type (auto-detected)'}>
           <div className="flex flex-wrap gap-2">
             {CATS.map((c) => (
               <button
                 key={c}
-                onClick={() => setCategory(c)}
+                onClick={() => {
+                  setCategory(c);
+                  setCategoryTouched(true);
+                }}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-medium border ${
                   category === c ? 'text-white border-transparent' : 'bg-white text-slate-600 border-slate-200'
                 }`}
@@ -157,12 +199,35 @@ export function Backlog({
             ))}
           </div>
         </Field>
+        <Field label="How long">
+          <div className="flex flex-wrap gap-2">
+            {DURATIONS.map((d) => (
+              <button
+                key={d}
+                onClick={() => setDurationMin(d)}
+                className={`px-3 py-1.5 rounded-full text-[13px] font-medium border ${
+                  durationMin === d ? 'bg-ink text-white border-transparent' : 'bg-white border-slate-200'
+                }`}
+              >
+                {d < 60 ? `${d}m` : d % 60 === 0 ? `${d / 60}h` : `${Math.floor(d / 60)}h${d % 60}`}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Notes (optional)">
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[15px] outline-none focus:border-ink"
+          />
+        </Field>
         <button
-          onClick={add}
+          onClick={save}
           disabled={!title.trim()}
           className="w-full mt-2 px-4 py-3 rounded-xl bg-ink text-white font-semibold text-[15px] disabled:opacity-40"
         >
-          Add idea
+          {editingId ? 'Save changes' : 'Add idea'}
         </button>
       </Sheet>
     </div>

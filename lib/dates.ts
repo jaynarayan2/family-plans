@@ -41,6 +41,15 @@ export function fmtDayShort(iso: string): { dow: string; num: string } {
   };
 }
 
+// Friendly compact day, e.g. "Mon 6 Jul"
+export function fmtNiceDay(iso: string): string {
+  if (!iso) return 'Pick a day';
+  const d = new Date(iso + 'T00:00:00');
+  const wd = d.toLocaleDateString('en-GB', { weekday: 'short' });
+  const mo = d.toLocaleDateString('en-GB', { month: 'short' });
+  return `${wd} ${d.getDate()} ${mo}`;
+}
+
 export function fmtMonthYear(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });

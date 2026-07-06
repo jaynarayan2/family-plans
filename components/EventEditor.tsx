@@ -10,7 +10,8 @@ import {
   USERS,
 } from '@/lib/types';
 import { Action } from '@/lib/reducer';
-import { Sheet, Field, Avatar } from './ui';
+import { guessCategory } from '@/lib/categorize';
+import { Sheet, Field, Avatar, DateField } from './ui';
 
 const CATS = Object.keys(CATEGORY_META) as Category[];
 const DURATIONS = [30, 45, 60, 90, 120, 150, 180, 240];
@@ -34,7 +35,17 @@ export function EventEditor({
 }) {
   const e = existing;
   const [title, setTitle] = useState(e?.title ?? '');
-  const [category, setCategory] = useState<Category>(e?.category ?? 'dinner');
+  const [category, setCategory] = useState<Category>(e?.category ?? 'other');
+  // Auto-guess category from the title until the user picks one themselves.
+  const [categoryTouched, setCategoryTouched] = useState(!!e);
+
+  function onTitleChange(v: string) {
+    setTitle(v);
+    if (!categoryTouched) {
+      const g = guessCategory(v);
+      if (g) setCategory(g);
+    }
+  }
   const [owner, setOwner] = useState<Owner>(e?.owner ?? 'shared');
   const [participants, setParticipants] = useState<UserName[]>(
     e?.participants ?? [...USERS]
@@ -169,18 +180,21 @@ export function EventEditor({
         <Field label="What">
           <input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             placeholder="e.g. Dinner at Buca, Costco run, Nap"
             className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[15px] outline-none focus:border-ink"
           />
         </Field>
 
-        <Field label="Type">
+        <Field label={categoryTouched ? 'Type' : 'Type (auto-detected)'}>
           <div className="flex flex-wrap gap-2">
             {CATS.map((c) => (
               <button
                 key={c}
-                onClick={() => setCategory(c)}
+                onClick={() => {
+                  setCategory(c);
+                  setCategoryTouched(true);
+                }}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-medium border ${
                   category === c
                     ? 'text-white border-transparent'
@@ -240,12 +254,7 @@ export function EventEditor({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Day">
-            <input
-              type="date"
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[15px] outline-none focus:border-ink"
-            />
+            <DateField value={day} onChange={setDay} />
           </Field>
           <Field label="Start">
             <input

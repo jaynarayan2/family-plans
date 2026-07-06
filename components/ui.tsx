@@ -1,8 +1,51 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useRef } from 'react';
 import { UserName } from '@/lib/types';
 import { USER_CONFIG } from '@/lib/users';
+import { fmtNiceDay } from '@/lib/dates';
+
+// A date field that DISPLAYS "Mon 6 Jul" but opens the native date picker.
+export function DateField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (iso: string) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  function openPicker() {
+    const el = ref.current;
+    if (!el) return;
+    try {
+      // Modern browsers: opens the native picker without showing the ISO field.
+      (el as any).showPicker ? (el as any).showPicker() : el.focus();
+    } catch {
+      el.focus();
+    }
+  }
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={openPicker}
+        className="w-full text-left rounded-xl border border-slate-200 px-3 py-2.5 text-[15px] flex items-center justify-between focus:border-ink"
+      >
+        <span>{fmtNiceDay(value)}</span>
+        <span className="text-slate-400">📅</span>
+      </button>
+      <input
+        ref={ref}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+        tabIndex={-1}
+        aria-hidden
+      />
+    </div>
+  );
+}
 
 export function Avatar({ user, size = 28 }: { user: UserName; size?: number }) {
   const c = USER_CONFIG[user];

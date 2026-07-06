@@ -22,6 +22,7 @@ export type Action =
   | { type: 'vote'; id: string; user: UserName; value: Vote }
   | { type: 'setStatus'; id: string; status: 'pending' | 'confirmed'; by: UserName }
   | { type: 'addBacklog'; item: Omit<BacklogItem, 'id' | 'createdAt'> }
+  | { type: 'updateBacklog'; id: string; patch: Partial<BacklogItem> }
   | { type: 'deleteBacklog'; id: string }
   | { type: 'scheduleBacklog'; id: string; day: string; start: string }
   | { type: 'markRead'; user: UserName }
@@ -109,6 +110,11 @@ export function reduce(prev: AppState, action: Action): AppState {
     }
     case 'addBacklog': {
       state.backlog.push({ ...action.item, id: genId('b'), createdAt: Date.now() });
+      break;
+    }
+    case 'updateBacklog': {
+      const item = state.backlog.find((b) => b.id === action.id);
+      if (item) Object.assign(item, action.patch);
       break;
     }
     case 'deleteBacklog': {
