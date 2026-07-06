@@ -248,7 +248,7 @@ function TimelineEvent({
         touchAction: 'none',
         zIndex: dragging ? 40 : 1,
       }}
-      className={`absolute rounded-xl bg-white shadow-sm border border-slate-100 overflow-hidden px-2 py-1 select-none ${
+      className={`absolute rounded-xl bg-white shadow-sm border border-slate-100 overflow-hidden px-2 py-1 select-none pointer-events-auto ${
         dragging ? 'ring-2 ring-ink scale-[1.02] shadow-xl' : ''
       } ${wiggle ? 'animate-pop ring-2 ring-slate-300' : ''}`}
     >
@@ -372,8 +372,8 @@ export function DayView({
           }}
         />
 
-        {/* Events */}
-        <div className="absolute inset-y-0 right-1" style={{ left: 44 }}>
+        {/* Events — container lets empty-space taps fall through to the tap layer */}
+        <div className="absolute inset-y-0 right-1 pointer-events-none" style={{ left: 44 }}>
           {evs.map((e) => (
             <TimelineEvent
               key={e.id}
