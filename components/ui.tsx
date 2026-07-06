@@ -1,0 +1,105 @@
+'use client';
+
+import { ReactNode } from 'react';
+import { UserName } from '@/lib/types';
+import { USER_CONFIG } from '@/lib/users';
+
+export function Avatar({ user, size = 28 }: { user: UserName; size?: number }) {
+  const c = USER_CONFIG[user];
+  return (
+    <span
+      title={user}
+      style={{ background: c.color, width: size, height: size, fontSize: size * 0.5 }}
+      className="inline-flex items-center justify-center rounded-full text-white font-semibold shrink-0"
+    >
+      {user[0]}
+    </span>
+  );
+}
+
+export function AvatarStack({ users }: { users: UserName[] }) {
+  return (
+    <span className="flex -space-x-2">
+      {users.map((u) => (
+        <span key={u} className="ring-2 ring-white rounded-full">
+          <Avatar user={u} size={22} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function StatusPill({ status }: { status: 'pending' | 'confirmed' }) {
+  if (status === 'confirmed') {
+    return (
+      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+        Confirmed
+      </span>
+    );
+  }
+  return (
+    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+      Pending
+    </span>
+  );
+}
+
+export function LockBadge({ fixed }: { fixed: boolean }) {
+  if (fixed) {
+    return (
+      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 flex items-center gap-0.5">
+        🔒 Fixed
+      </span>
+    );
+  }
+  return (
+    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 flex items-center gap-0.5">
+      ↔ Movable
+    </span>
+  );
+}
+
+export function Sheet({
+  open,
+  onClose,
+  children,
+  title,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  title?: string;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 animate-fadein"
+      onClick={onClose}
+    >
+      <div
+        className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto animate-slidein"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-white/95 backdrop-blur px-5 pt-4 pb-2 flex items-center justify-between border-b border-slate-100">
+          <h2 className="font-bold text-lg">{title}</h2>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+        <div className="p-5 pt-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block mb-3">
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+      <div className="mt-1">{children}</div>
+    </label>
+  );
+}
