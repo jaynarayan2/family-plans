@@ -1,16 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BacklogItem, CalEvent, UserName } from '@/lib/types';
 import { USER_CONFIG } from '@/lib/users';
-import {
-  useStore,
-  getStoredUser,
-  setStoredUser,
-  clearStoredUser,
-} from '@/lib/store';
+import { useStore } from '@/lib/store';
 import { todayISO } from '@/lib/dates';
 import { Splash } from '@/components/Splash';
+import { Gate } from '@/components/Gate';
+import { Account } from '@/components/Account';
 import { DayStrip, DayView, WeekView } from '@/components/CalendarViews';
 import { EventEditor } from '@/components/EventEditor';
 import { Backlog } from '@/components/Backlog';
@@ -21,8 +18,9 @@ import { Avatar } from '@/components/ui';
 type Tab = 'plans' | 'backlog' | 'eat' | 'do';
 
 export default function Home() {
-  const { state, dispatch } = useStore();
   const [me, setMe] = useState<UserName | null>(null);
+  const [authed, setAuthed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [tab, setTab] = useState<Tab>('plans');
   const [calMode, setCalMode] = useState<'day' | 'week'>('day');
@@ -33,16 +31,41 @@ export default function Home() {
   const [newAt, setNewAt] = useState<{ day: string; start?: string } | null>(null);
   const [assignItem, setAssignItem] = useState<BacklogItem | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
+  const onUnauthorized = useCallback(() => {
+    setAuthed(false);
+    setMe(null);
+    setShowSplash(true);
+  }, []);
+
+  const { state, dispatch } = useStore(authed, onUnauthorized);
+
+  // Check for an existing session on load.
   useEffect(() => {
-    setMe(getStoredUser());
+    (async () => {
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'status' }),
+        });
+        const data = await res.json();
+        if (data.authedUser) {
+          setMe(data.authedUser);
+          setAuthed(true);
+        }
+      } catch {}
+      setAuthChecked(true);
+    })();
   }, []);
 
   const unread = me ? unreadCount(state, me) : 0;
 
-  function pickUser(u: UserName) {
-    setStoredUser(u);
+  function onAuthed(u: UserName) {
     setMe(u);
+    setAuthed(true);
+    setShowSplash(true);
   }
 
   function openNew(day: string, start?: string) {
@@ -63,14 +86,16 @@ export default function Home() {
     setCalMode('day');
   }
 
-  if (!me || showSplash) {
-    return (
-      <Splash
-        user={me}
-        onPick={pickUser}
-        onEnter={() => setShowSplash(false)}
-      />
-    );
+  if (!authChecked) {
+    return <div className="fixed inset-0 bg-ink" />;
+  }
+
+  if (!authed || !me) {
+    return <Gate onAuthed={onAuthed} />;
+  }
+
+  if (showSplash) {
+    return <Splash user={me} onPick={() => {}} onEnter={() => setShowSplash(false)} />;
   }
 
   const c = USER_CONFIG[me];
@@ -80,14 +105,7 @@ export default function Home() {
       {/* Sticky top chrome: header + calendar controls + date strip */}
       <div className="sticky top-0 z-30 bg-[#f4f5fb]/95 backdrop-blur shadow-[0_2px_10px_-8px_rgba(0,0,0,0.3)]">
       <header className="px-4 pt-3 pb-2 flex items-center gap-3">
-        <button
-          onClick={() => {
-            clearStoredUser();
-            setMe(null);
-            setShowSplash(true);
-          }}
-          className="flex items-center gap-2"
-        >
+        <button onClick={() => setAccountOpen(true)} className="flex items-center gap-2">
           <Avatar user={me} size={34} />
         </button>
         <div className="flex-1">
@@ -225,6 +243,17 @@ export default function Home() {
         state={state}
         me={me}
         dispatch={dispatch}
+      />
+      <Account
+        open={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        me={me}
+        onLoggedOut={() => {
+          setAccountOpen(false);
+          setAuthed(false);
+          setMe(null);
+          setShowSplash(true);
+        }}
       />
     </div>
   );

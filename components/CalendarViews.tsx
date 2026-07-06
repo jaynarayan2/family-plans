@@ -10,6 +10,8 @@ import {
   relativeLabel,
   isToday,
   fmtTime,
+  fmtMonthYear,
+  monthShort,
   addDays,
 } from '@/lib/dates';
 import { AvatarStack } from './ui';
@@ -58,28 +60,41 @@ export function DayStrip({
   const start = addDays(selected, -3);
   const days = Array.from({ length: 14 }, (_, i) => addDays(start, i));
   return (
-    <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 py-2">
-      {days.map((d) => {
-        const { dow, num } = fmtDayShort(d);
-        const active = d === selected;
-        return (
-          <button
-            key={d}
-            onClick={() => onSelect(d)}
-            className={`shrink-0 w-12 rounded-2xl pt-2 pb-1.5 flex flex-col items-center gap-1 ${
-              active ? 'bg-ink text-white' : 'bg-white text-slate-500'
-            }`}
-          >
-            <span className="text-[11px] font-medium leading-none">{dow}</span>
-            <span className="text-[17px] font-bold leading-none">{num}</span>
-            <span className="h-2 flex items-center justify-center">
-              {isToday(d) && !active ? (
-                <span className="w-1.5 h-1.5 rounded-full bg-ink" />
-              ) : null}
-            </span>
-          </button>
-        );
-      })}
+    <div>
+      <div className="px-4 pt-1.5 text-[13px] font-bold text-slate-500">
+        {fmtMonthYear(selected)}
+      </div>
+      <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 pt-1 pb-2">
+        {days.map((d, i) => {
+          const { dow, num } = fmtDayShort(d);
+          const active = d === selected;
+          const newMonth = i === 0 || monthShort(d) !== monthShort(days[i - 1]);
+          return (
+            <button
+              key={d}
+              onClick={() => onSelect(d)}
+              className={`shrink-0 w-12 rounded-2xl pt-1.5 pb-1.5 flex flex-col items-center gap-0.5 ${
+                active ? 'bg-ink text-white' : 'bg-white text-slate-500'
+              }`}
+            >
+              <span
+                className={`text-[9px] font-bold uppercase leading-none h-3 ${
+                  active ? 'text-white/70' : 'text-slate-400'
+                }`}
+              >
+                {newMonth ? monthShort(d) : ''}
+              </span>
+              <span className="text-[11px] font-medium leading-none">{dow}</span>
+              <span className="text-[17px] font-bold leading-none">{num}</span>
+              <span className="h-2 flex items-center justify-center">
+                {isToday(d) && !active ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink" />
+                ) : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

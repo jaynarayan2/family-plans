@@ -20,14 +20,19 @@ export function clearStoredUser() {
   window.localStorage.removeItem(USER_KEY);
 }
 
-export function useStore() {
+export function useStore(authed: boolean, onUnauthorized?: () => void) {
   const [state, setState] = useState<AppState>(emptyState());
   const [loaded, setLoaded] = useState(false);
   const versionRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    if (!authed) return;
     try {
       const res = await fetch('/api/state', { cache: 'no-store' });
+      if (res.status === 401) {
+        onUnauthorized?.();
+        return;
+      }
       if (!res.ok) return;
       const data: AppState = await res.json();
       // Only apply if newer (avoid clobbering an in-flight optimistic update).
@@ -39,7 +44,7 @@ export function useStore() {
     } catch {
       setLoaded(true);
     }
-  }, []);
+  }, [authed, onUnauthorized]);
 
   const dispatch = useCallback(async (action: Action) => {
     try {
@@ -48,6 +53,10 @@ export function useStore() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(action),
       });
+      if (res.status === 401) {
+        onUnauthorized?.();
+        return;
+      }
       if (!res.ok) return;
       const next: AppState = await res.json();
       versionRef.current = next.version ?? 0;
@@ -55,9 +64,10 @@ export function useStore() {
     } catch {
       // network hiccup — next poll will reconcile
     }
-  }, []);
+  }, [onUnauthorized]);
 
   useEffect(() => {
+    if (!authed) return;
     refresh();
     const iv = setInterval(refresh, 4000);
     const onVis = () => {
@@ -68,7 +78,7 @@ export function useStore() {
       clearInterval(iv);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [refresh]);
+  }, [refresh, authed]);
 
   return { state, loaded, dispatch, refresh };
 }

@@ -41,6 +41,16 @@ export function fmtDayShort(iso: string): { dow: string; num: string } {
   };
 }
 
+export function fmtMonthYear(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+}
+
+export function monthShort(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-CA', { month: 'short' });
+}
+
 export function fmtTime(hhmm: string): string {
   const [h, m] = hhmm.split(':').map(Number);
   const ampm = h >= 12 ? 'pm' : 'am';
