@@ -10,6 +10,7 @@ import {
   relativeLabel,
   isToday,
   fmtTime,
+  fmtDur,
   fmtMonthYear,
   monthShort,
   addDays,
@@ -254,13 +255,16 @@ function TimelineEvent({
     >
       {dragging && (
         <div className="absolute -top-0 right-1 text-[10px] font-bold text-white bg-ink px-1.5 py-0.5 rounded-full">
-          {fmtTime(hhmmOf(curMin))}
+          {fmtTime(hhmmOf(curMin))} – {fmtTime(hhmmOf((curMin + ev.durationMin) % 1440))}
         </div>
       )}
-      <div className="flex items-center gap-1 text-[11px] text-slate-400 leading-none">
+      <div className="flex items-center gap-1 text-[11px] text-slate-400 leading-none min-w-0">
         <span>{meta.emoji}</span>
-        <span className="font-medium">{fmtTime(hhmmOf(curMin))}</span>
-        {ev.fixed && <span>🔒</span>}
+        <span className="font-medium truncate">
+          {fmtTime(hhmmOf(curMin))} – {fmtTime(hhmmOf((curMin + ev.durationMin) % 1440))}
+        </span>
+        <span className="text-slate-300 shrink-0">· {fmtDur(ev.durationMin)}</span>
+        {ev.fixed && <span className="shrink-0">🔒</span>}
       </div>
       <div className={`font-bold leading-tight truncate ${short ? 'text-[12px]' : 'text-[13px] mt-0.5'}`}>
         {ev.title}

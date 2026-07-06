@@ -2,7 +2,7 @@
 
 import { CalEvent, CATEGORY_META, UserName, USERS } from '@/lib/types';
 import { Action } from '@/lib/reducer';
-import { fmtTime, endTime } from '@/lib/dates';
+import { fmtTime, endTime, fmtDur } from '@/lib/dates';
 import { AvatarStack, StatusPill, LockBadge } from './ui';
 
 export function EventCard({
@@ -36,6 +36,7 @@ export function EventCard({
               <span>
                 {fmtTime(ev.start)} – {fmtTime(endTime(ev.start, ev.durationMin))}
               </span>
+              <span className="text-slate-400">· {fmtDur(ev.durationMin)}</span>
             </div>
             <div className="font-bold text-[15px] leading-tight mt-0.5 truncate">{ev.title}</div>
             {ev.location && (

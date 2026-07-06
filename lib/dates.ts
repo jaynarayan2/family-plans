@@ -41,6 +41,14 @@ export function fmtDayShort(iso: string): { dow: string; num: string } {
   };
 }
 
+// Duration like "30m", "1h", "1h30"
+export function fmtDur(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h${m}`;
+}
+
 // Friendly compact day, e.g. "Mon 6 Jul"
 export function fmtNiceDay(iso: string): string {
   if (!iso) return 'Pick a day';
