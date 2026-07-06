@@ -51,11 +51,9 @@ function eventsForDay(state: AppState, day: string): CalEvent[] {
 export function DayStrip({
   selected,
   onSelect,
-  countFor,
 }: {
   selected: string;
   onSelect: (d: string) => void;
-  countFor: (d: string) => number;
 }) {
   const start = addDays(selected, -3);
   const days = Array.from({ length: 14 }, (_, i) => addDays(start, i));
@@ -64,7 +62,6 @@ export function DayStrip({
       {days.map((d) => {
         const { dow, num } = fmtDayShort(d);
         const active = d === selected;
-        const n = countFor(d);
         return (
           <button
             key={d}
@@ -75,16 +72,8 @@ export function DayStrip({
           >
             <span className="text-[11px] font-medium leading-none">{dow}</span>
             <span className="text-[17px] font-bold leading-none">{num}</span>
-            <span className="h-4 flex items-center justify-center">
-              {n > 0 ? (
-                <span
-                  className={`text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center ${
-                    active ? 'bg-white text-ink' : 'bg-ink/10 text-ink'
-                  }`}
-                >
-                  {n}
-                </span>
-              ) : isToday(d) && !active ? (
+            <span className="h-2 flex items-center justify-center">
+              {isToday(d) && !active ? (
                 <span className="w-1.5 h-1.5 rounded-full bg-ink" />
               ) : null}
             </span>

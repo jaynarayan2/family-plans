@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BacklogItem, CalEvent, UserName } from '@/lib/types';
 import { USER_CONFIG } from '@/lib/users';
 import {
@@ -39,12 +39,6 @@ export default function Home() {
   }, []);
 
   const unread = me ? unreadCount(state, me) : 0;
-
-  const countFor = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const e of state.events) map[e.day] = (map[e.day] || 0) + 1;
-    return (d: string) => map[d] || 0;
-  }, [state.events]);
 
   function pickUser(u: UserName) {
     setStoredUser(u);
@@ -133,7 +127,7 @@ export default function Home() {
       )}
 
       {tab === 'plans' && calMode === 'day' && (
-        <DayStrip selected={selectedDay} onSelect={setSelectedDay} countFor={countFor} />
+        <DayStrip selected={selectedDay} onSelect={setSelectedDay} />
       )}
       <div className="pb-1" />
       </div>
