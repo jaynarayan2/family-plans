@@ -19,11 +19,9 @@ export function Avatar({ user, size = 28 }: { user: UserName; size?: number }) {
 
 export function AvatarStack({ users }: { users: UserName[] }) {
   return (
-    <span className="flex -space-x-2">
+    <span className="flex gap-1">
       {users.map((u) => (
-        <span key={u} className="ring-2 ring-white rounded-full">
-          <Avatar user={u} size={22} />
-        </span>
+        <Avatar key={u} user={u} size={20} />
       ))}
     </span>
   );

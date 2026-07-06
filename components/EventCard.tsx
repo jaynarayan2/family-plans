@@ -42,19 +42,23 @@ export function EventCard({
               <div className="text-[12px] text-slate-400 truncate">📍 {ev.location}</div>
             )}
           </div>
-          <div className="flex flex-col items-end gap-1 shrink-0">
+          <div className="shrink-0">
             <StatusPill status={ev.status} />
-            {ev.participants.length > 0 && <AvatarStack users={ev.participants} />}
           </div>
         </div>
-        {!compact && (
-          <div className="flex items-center gap-2 mt-2">
-            <LockBadge fixed={ev.fixed} />
+        <div className="flex items-center gap-2 mt-2">
+          <LockBadge fixed={ev.fixed} />
+          {!compact && (
             <span className="text-[11px] text-slate-400">
               {ev.owner === 'shared' ? 'Shared' : `${ev.owner}’s`}
             </span>
-          </div>
-        )}
+          )}
+          {ev.participants.length > 0 && (
+            <span className="ml-auto">
+              <AvatarStack users={ev.participants} />
+            </span>
+          )}
+        </div>
       </button>
 
       {/* Voting + confirm controls for pending, non-fixed events */}
