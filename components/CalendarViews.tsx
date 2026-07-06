@@ -1,6 +1,7 @@
 'use client';
 
-import { AppState, CalEvent, UserName, BacklogItem } from '@/lib/types';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, CalEvent, CATEGORY_META, UserName, BacklogItem } from '@/lib/types';
 import { Action } from '@/lib/reducer';
 import {
   weekDays,
@@ -11,12 +12,33 @@ import {
   fmtTime,
   addDays,
 } from '@/lib/dates';
+import { AvatarStack } from './ui';
 import { EventCard } from './EventCard';
 
-const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am..11pm
+// Timeline geometry
+const START_HOUR = 6;
+const END_HOUR = 24; // midnight
+const HOUR_PX = 56;
+const PX_PER_MIN = HOUR_PX / 60;
+const SNAP_MIN = 30;
+const DAY_MIN_START = START_HOUR * 60;
+const DAY_MIN_END = END_HOUR * 60;
 
-function hh(h: number) {
-  return `${String(h).padStart(2, '0')}:00`;
+function minutesOf(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+function hhmmOf(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function snap(min: number): number {
+  return Math.round(min / SNAP_MIN) * SNAP_MIN;
+}
+function clampStart(min: number, durationMin: number): number {
+  const latest = DAY_MIN_END - Math.min(durationMin, DAY_MIN_END - DAY_MIN_START);
+  return Math.max(DAY_MIN_START, Math.min(min, latest));
 }
 
 function eventsForDay(state: AppState, day: string): CalEvent[] {
@@ -73,7 +95,191 @@ export function DayStrip({
   );
 }
 
-// ---------- Day view (hour grid) ----------
+// ---------- Timeline event block (press-and-hold to move) ----------
+type Placed = { lane: number; cols: number };
+
+function layoutLanes(evs: CalEvent[]): Map<string, Placed> {
+  const sorted = [...evs].sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
+  const result = new Map<string, Placed>();
+  let cluster: CalEvent[] = [];
+  let clusterEnd = -1;
+
+  const flush = () => {
+    const laneEnds: number[] = [];
+    const laneOf = new Map<string, number>();
+    for (const e of cluster) {
+      const s = minutesOf(e.start);
+      const en = s + e.durationMin;
+      let placed = false;
+      for (let i = 0; i < laneEnds.length; i++) {
+        if (laneEnds[i] <= s) {
+          laneEnds[i] = en;
+          laneOf.set(e.id, i);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        laneEnds.push(en);
+        laneOf.set(e.id, laneEnds.length - 1);
+      }
+    }
+    const cols = laneEnds.length;
+    for (const e of cluster) result.set(e.id, { lane: laneOf.get(e.id) ?? 0, cols });
+    cluster = [];
+    clusterEnd = -1;
+  };
+
+  for (const e of sorted) {
+    const s = minutesOf(e.start);
+    const en = s + e.durationMin;
+    if (cluster.length && s >= clusterEnd) flush();
+    cluster.push(e);
+    clusterEnd = Math.max(clusterEnd, en);
+  }
+  flush();
+  return result;
+}
+
+function TimelineEvent({
+  ev,
+  day,
+  placed,
+  dispatch,
+  onEdit,
+}: {
+  ev: CalEvent;
+  day: string;
+  placed: Placed;
+  dispatch: (a: Action) => void;
+  onEdit: (ev: CalEvent) => void;
+}) {
+  const meta = CATEGORY_META[ev.category];
+  const [dragging, setDragging] = useState(false);
+  const [preview, setPreview] = useState<number | null>(null);
+  const [wiggle, setWiggle] = useState(false);
+
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startY = useRef(0);
+  const startMin = useRef(0);
+  const previewRef = useRef(0);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+
+  useEffect(() => () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+  }, []);
+
+  function onPointerDown(e: React.PointerEvent) {
+    movedRef.current = false;
+    startY.current = e.clientY;
+    startMin.current = minutesOf(ev.start);
+    previewRef.current = startMin.current;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    holdTimer.current = setTimeout(() => {
+      if (ev.fixed) {
+        setWiggle(true);
+        setTimeout(() => setWiggle(false), 450);
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(60);
+        return;
+      }
+      draggingRef.current = true;
+      setDragging(true);
+      setPreview(startMin.current);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+    }, 380);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const dy = e.clientY - startY.current;
+    if (!draggingRef.current) {
+      if (Math.abs(dy) > 8) {
+        movedRef.current = true;
+        if (holdTimer.current) clearTimeout(holdTimer.current);
+      }
+      return;
+    }
+    e.preventDefault();
+    const next = clampStart(snap(startMin.current + dy / PX_PER_MIN), ev.durationMin);
+    previewRef.current = next;
+    setPreview(next);
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    if (draggingRef.current) {
+      draggingRef.current = false;
+      setDragging(false);
+      const finalMin = previewRef.current;
+      setPreview(null);
+      if (finalMin !== minutesOf(ev.start)) {
+        dispatch({ type: 'moveEvent', id: ev.id, day, start: hhmmOf(finalMin) });
+      }
+      e.preventDefault();
+      return;
+    }
+    if (!movedRef.current) onEdit(ev);
+  }
+
+  const curMin = dragging && preview != null ? preview : minutesOf(ev.start);
+  const top = (curMin - DAY_MIN_START) * PX_PER_MIN;
+  const height = Math.max(26, ev.durationMin * PX_PER_MIN - 3);
+  const widthPct = 100 / placed.cols;
+  const leftPct = placed.lane * widthPct;
+  const short = height < 42;
+
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      style={{
+        top,
+        height,
+        left: `${leftPct}%`,
+        width: `calc(${widthPct}% - 4px)`,
+        borderLeft: `4px solid ${meta.color}`,
+        touchAction: 'none',
+        zIndex: dragging ? 40 : 1,
+      }}
+      className={`absolute rounded-xl bg-white shadow-sm border border-slate-100 overflow-hidden px-2 py-1 select-none ${
+        dragging ? 'ring-2 ring-ink scale-[1.02] shadow-xl' : ''
+      } ${wiggle ? 'animate-pop ring-2 ring-slate-300' : ''}`}
+    >
+      {dragging && (
+        <div className="absolute -top-0 right-1 text-[10px] font-bold text-white bg-ink px-1.5 py-0.5 rounded-full">
+          {fmtTime(hhmmOf(curMin))}
+        </div>
+      )}
+      <div className="flex items-center gap-1 text-[11px] text-slate-400 leading-none">
+        <span>{meta.emoji}</span>
+        <span className="font-medium">{fmtTime(hhmmOf(curMin))}</span>
+        {ev.fixed && <span>🔒</span>}
+      </div>
+      <div className={`font-bold leading-tight truncate ${short ? 'text-[12px]' : 'text-[13px] mt-0.5'}`}>
+        {ev.title}
+      </div>
+      {!short && (
+        <div className="flex items-center gap-1 mt-1">
+          {ev.status === 'pending' && (
+            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+              Pending
+            </span>
+          )}
+          {ev.participants.length > 0 && height > 60 && (
+            <span className="ml-auto">
+              <AvatarStack users={ev.participants} />
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Day view (drag-able timeline) ----------
 export function DayView({
   state,
   me,
@@ -95,8 +301,17 @@ export function DayView({
 }) {
   const evs = eventsForDay(state, day);
   const rel = relativeLabel(day);
+  const placement = layoutLanes(evs);
+  const totalPx = (DAY_MIN_END - DAY_MIN_START) * PX_PER_MIN;
+  const hourLines = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 
-  function place(start: string) {
+  function timeFromClientY(clientY: number, container: HTMLElement, durationMin = 60): string {
+    const rect = container.getBoundingClientRect();
+    const y = clientY - rect.top;
+    return hhmmOf(clampStart(snap(DAY_MIN_START + y / PX_PER_MIN), durationMin));
+  }
+
+  function placeAt(start: string) {
     if (assignItem) {
       dispatch({ type: 'scheduleBacklog', id: assignItem.id, day, start });
       onPlaced();
@@ -112,49 +327,60 @@ export function DayView({
         {rel && <span className="text-slate-400 text-[13px]">{fmtDayLong(day)}</span>}
       </div>
 
-      {assignItem && (
-        <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[13px] p-3 animate-slidein">
-          Tap a time to place <b>“{assignItem.title}”</b>
-        </div>
-      )}
+      <div className="mb-2 text-[11px] text-slate-400">
+        {assignItem ? (
+          <span className="text-amber-700 font-medium">Tap a time to place “{assignItem.title}”</span>
+        ) : (
+          'Tap empty space to add · press & hold an event to move it'
+        )}
+      </div>
 
-      <div className="rounded-2xl overflow-hidden border border-slate-100 bg-white">
-        {HOURS.map((h) => {
-          const slot = hh(h);
-          const inSlot = evs.filter((e) => {
-            const eh = parseInt(e.start.split(':')[0], 10);
-            return eh === h;
-          });
+      <div
+        className="relative rounded-2xl border border-slate-100 bg-white"
+        style={{ height: totalPx }}
+      >
+        {/* Hour grid + labels */}
+        {hourLines.map((h) => {
+          const y = (h * 60 - DAY_MIN_START) * PX_PER_MIN;
           return (
-            <div
-              key={h}
-              onClick={() => inSlot.length === 0 && place(slot)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                const id = e.dataTransfer.getData('text/backlog');
-                if (id) {
-                  dispatch({ type: 'scheduleBacklog', id, day, start: slot });
-                  onPlaced();
-                }
-              }}
-              className="flex gap-2 border-b border-slate-50 min-h-[52px] px-2 py-1.5 active:bg-slate-50"
-            >
-              <div className="w-11 shrink-0 text-[11px] text-slate-400 pt-1 font-medium">
-                {fmtTime(slot)}
-              </div>
-              <div className="flex-1 space-y-1.5">
-                {inSlot.map((e) => (
-                  <EventCard key={e.id} ev={e} me={me} dispatch={dispatch} onEdit={onEdit} compact />
-                ))}
-                {inSlot.length === 0 && (
-                  <div className="text-[12px] text-slate-300 pt-1.5">
-                    {assignItem ? 'Tap to place here' : '+'}
-                  </div>
-                )}
-              </div>
+            <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: y }}>
+              <span className="w-11 shrink-0 -mt-1.5 text-[10px] text-slate-400 font-medium pl-1">
+                {h < END_HOUR ? fmtTime(hhmmOf(h * 60)) : ''}
+              </span>
+              <span className="flex-1 border-t border-slate-100 mt-0.5" />
             </div>
           );
         })}
+
+        {/* Tap / drop layer for empty space */}
+        <div
+          className="absolute inset-y-0 right-1"
+          style={{ left: 44 }}
+          onClick={(e) => placeAt(timeFromClientY(e.clientY, e.currentTarget as HTMLElement))}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            const id = e.dataTransfer.getData('text/backlog');
+            if (id) {
+              const start = timeFromClientY(e.clientY, e.currentTarget as HTMLElement);
+              dispatch({ type: 'scheduleBacklog', id, day, start });
+              onPlaced();
+            }
+          }}
+        />
+
+        {/* Events */}
+        <div className="absolute inset-y-0 right-1" style={{ left: 44 }}>
+          {evs.map((e) => (
+            <TimelineEvent
+              key={e.id}
+              ev={e}
+              day={day}
+              placed={placement.get(e.id) ?? { lane: 0, cols: 1 }}
+              dispatch={dispatch}
+              onEdit={onEdit}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

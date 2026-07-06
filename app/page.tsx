@@ -83,8 +83,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen max-w-md mx-auto relative">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-[#f4f5fb]/90 backdrop-blur px-4 pt-3 pb-2 flex items-center gap-3">
+      {/* Sticky top chrome: header + calendar controls + date strip */}
+      <div className="sticky top-0 z-30 bg-[#f4f5fb]/95 backdrop-blur shadow-[0_2px_10px_-8px_rgba(0,0,0,0.3)]">
+      <header className="px-4 pt-3 pb-2 flex items-center gap-3">
         <button
           onClick={() => {
             clearStoredUser();
@@ -134,6 +135,8 @@ export default function Home() {
       {tab === 'plans' && calMode === 'day' && (
         <DayStrip selected={selectedDay} onSelect={setSelectedDay} countFor={countFor} />
       )}
+      <div className="pb-1" />
+      </div>
 
       {/* Body */}
       <main>

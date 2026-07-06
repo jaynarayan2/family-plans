@@ -103,6 +103,68 @@ export function EventEditor({
         </div>
       )}
 
+      {e && (
+        <div className="mb-4 rounded-2xl bg-slate-50 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Votes
+            </span>
+            <div className="flex gap-1">
+              {USERS.map((u) => {
+                const v = e.votes[u];
+                return (
+                  <span
+                    key={u}
+                    title={`${u}: ${v ?? 'no vote'}`}
+                    className={`text-[13px] w-7 h-7 rounded-full flex items-center justify-center ${
+                      v === 'yes'
+                        ? 'bg-emerald-100'
+                        : v === 'no'
+                        ? 'bg-rose-100'
+                        : 'bg-slate-200 opacity-50'
+                    }`}
+                  >
+                    {v === 'yes' ? '👍' : v === 'no' ? '👎' : u[0]}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => dispatch({ type: 'vote', id: e.id, user: me, value: 'yes' })}
+              className={`flex-1 py-2 rounded-xl text-[14px] font-semibold ${
+                e.votes[me] === 'yes' ? 'bg-emerald-500 text-white' : 'bg-white text-emerald-600 border border-emerald-200'
+              }`}
+            >
+              👍 I'm in
+            </button>
+            <button
+              onClick={() => dispatch({ type: 'vote', id: e.id, user: me, value: 'no' })}
+              className={`flex-1 py-2 rounded-xl text-[14px] font-semibold ${
+                e.votes[me] === 'no' ? 'bg-rose-500 text-white' : 'bg-white text-rose-500 border border-rose-200'
+              }`}
+            >
+              👎 Pass
+            </button>
+          </div>
+          <button
+            onClick={() => {
+              const next = status === 'confirmed' ? 'pending' : 'confirmed';
+              dispatch({ type: 'setStatus', id: e.id, status: next, by: me });
+              setStatus(next);
+            }}
+            className={`w-full mt-2 py-2.5 rounded-xl text-[14px] font-bold ${
+              status === 'confirmed'
+                ? 'bg-white text-slate-600 border border-slate-200'
+                : 'bg-ink text-white'
+            }`}
+          >
+            {status === 'confirmed' ? '↩️ Move back to pending' : '✅ Confirm & notify everyone'}
+          </button>
+        </div>
+      )}
+
       <fieldset disabled={isFixedLocked} className={isFixedLocked ? 'opacity-60' : ''}>
         <Field label="What">
           <input
