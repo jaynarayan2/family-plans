@@ -160,6 +160,7 @@ export default function Home() {
               setSelectedDay(d);
               setCalMode('day');
             }}
+            onAnchorChange={setSelectedDay}
           />
         )}
         {tab === 'backlog' && (

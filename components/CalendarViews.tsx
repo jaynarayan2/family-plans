@@ -167,6 +167,7 @@ export function WeekView({
   anchor,
   onEdit,
   onPickDay,
+  onAnchorChange,
 }: {
   state: AppState;
   me: UserName;
@@ -174,10 +175,30 @@ export function WeekView({
   anchor: string;
   onEdit: (ev: CalEvent) => void;
   onPickDay: (d: string) => void;
+  onAnchorChange: (d: string) => void;
 }) {
   const days = weekDays(anchor);
+  const first = fmtDayLong(days[0]).replace(/,.*/, '');
+  const last = fmtDayLong(days[6]).replace(/,.*/, '');
   return (
     <div className="px-4 pb-28 space-y-4">
+      <div className="flex items-center justify-between pt-1">
+        <button
+          onClick={() => onAnchorChange(addDays(anchor, -7))}
+          className="w-9 h-9 rounded-full bg-white shadow-sm text-slate-600 text-lg"
+        >
+          ‹
+        </button>
+        <div className="text-[13px] font-semibold text-slate-500">
+          {first} – {last}
+        </div>
+        <button
+          onClick={() => onAnchorChange(addDays(anchor, 7))}
+          className="w-9 h-9 rounded-full bg-white shadow-sm text-slate-600 text-lg"
+        >
+          ›
+        </button>
+      </div>
       {days.map((d) => {
         const evs = eventsForDay(state, d);
         const rel = relativeLabel(d);
