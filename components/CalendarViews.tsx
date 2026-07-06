@@ -47,24 +47,25 @@ export function DayStrip({
           <button
             key={d}
             onClick={() => onSelect(d)}
-            className={`shrink-0 w-12 rounded-2xl py-2 flex flex-col items-center relative ${
+            className={`shrink-0 w-12 rounded-2xl pt-2 pb-1.5 flex flex-col items-center gap-1 ${
               active ? 'bg-ink text-white' : 'bg-white text-slate-500'
             }`}
           >
-            <span className="text-[11px] font-medium">{dow}</span>
-            <span className="text-[17px] font-bold leading-tight">{num}</span>
-            {isToday(d) && !active && (
-              <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-ink" />
-            )}
-            {n > 0 && (
-              <span
-                className={`absolute top-1 right-1 text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
-                  active ? 'bg-white text-ink' : 'bg-ink text-white'
-                }`}
-              >
-                {n}
-              </span>
-            )}
+            <span className="text-[11px] font-medium leading-none">{dow}</span>
+            <span className="text-[17px] font-bold leading-none">{num}</span>
+            <span className="h-4 flex items-center justify-center">
+              {n > 0 ? (
+                <span
+                  className={`text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center ${
+                    active ? 'bg-white text-ink' : 'bg-ink/10 text-ink'
+                  }`}
+                >
+                  {n}
+                </span>
+              ) : isToday(d) && !active ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-ink" />
+              ) : null}
+            </span>
           </button>
         );
       })}
