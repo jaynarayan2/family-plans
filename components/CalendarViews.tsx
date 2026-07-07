@@ -16,7 +16,6 @@ import {
   addDays,
 } from '@/lib/dates';
 import { AvatarStack } from './ui';
-import { EventCard } from './EventCard';
 
 // Timeline geometry
 const START_HOUR = 6;
@@ -174,18 +173,21 @@ function TimelineEvent({
   const previewRef = useRef(0);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
+  const downRef = useRef(false); // pointer actually pressed (ignore desktop hover moves)
 
   const resStartY = useRef(0);
   const resOrigDur = useRef(0);
   const resPreviewRef = useRef(0);
   const resizingRef = useRef(false);
   const resMovedRef = useRef(false);
+  const resDownRef = useRef(false);
 
   useEffect(() => () => {
     if (holdTimer.current) clearTimeout(holdTimer.current);
   }, []);
 
   function onPointerDown(e: React.PointerEvent) {
+    downRef.current = true;
     movedRef.current = false;
     startY.current = e.clientY;
     startMin.current = minutesOf(ev.start);
@@ -208,6 +210,7 @@ function TimelineEvent({
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    if (!downRef.current) return; // ignore desktop hover moves
     const dy = e.clientY - startY.current;
     if (!draggingRef.current) {
       if (Math.abs(dy) > 8) {
@@ -223,6 +226,7 @@ function TimelineEvent({
   }
 
   function onPointerUp(e: React.PointerEvent) {
+    downRef.current = false;
     if (holdTimer.current) clearTimeout(holdTimer.current);
     if (draggingRef.current) {
       draggingRef.current = false;
@@ -242,6 +246,7 @@ function TimelineEvent({
   function onResizeDown(e: React.PointerEvent) {
     e.stopPropagation();
     if (ev.fixed) return;
+    resDownRef.current = true;
     resMovedRef.current = false;
     resStartY.current = e.clientY;
     resOrigDur.current = ev.durationMin;
@@ -251,7 +256,7 @@ function TimelineEvent({
     } catch {}
   }
   function onResizeMove(e: React.PointerEvent) {
-    if (ev.fixed) return;
+    if (ev.fixed || !resDownRef.current) return; // ignore desktop hover moves
     const dy = e.clientY - resStartY.current;
     if (!resizingRef.current) {
       if (Math.abs(dy) > 3) {
@@ -269,6 +274,7 @@ function TimelineEvent({
   }
   function onResizeUp(e: React.PointerEvent) {
     e.stopPropagation();
+    resDownRef.current = false;
     if (resizingRef.current) {
       resizingRef.current = false;
       setResizing(false);
@@ -473,7 +479,19 @@ export function DayView({
   );
 }
 
-// ---------- Week view (agenda) ----------
+// ---------- Week view (7-column grid) ----------
+const WH0 = 6; // 6am
+const WH1 = 24; // midnight
+const WHPX = 42; // px per hour
+const WPX_PER_MIN = WHPX / 60;
+const WGUTTER = 26;
+
+function weekHourLabel(h: number): string {
+  const ap = h >= 12 && h < 24 ? 'p' : 'a';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${ap}`;
+}
+
 export function WeekView({
   state,
   me,
@@ -494,9 +512,13 @@ export function WeekView({
   const days = weekDays(anchor);
   const first = fmtDayLong(days[0]).replace(/,.*/, '');
   const last = fmtDayLong(days[6]).replace(/,.*/, '');
+  const total = (WH1 - WH0) * WHPX;
+  const hours = Array.from({ length: WH1 - WH0 + 1 }, (_, i) => WH0 + i);
+
   return (
-    <div className="px-4 pb-28 space-y-4">
-      <div className="flex items-center justify-between pt-1">
+    <div className="pb-28">
+      {/* Week nav */}
+      <div className="flex items-center justify-between px-4 pt-1 pb-1">
         <button
           onClick={() => onAnchorChange(addDays(anchor, -7))}
           className="w-9 h-9 rounded-full bg-white shadow-sm text-slate-600 text-lg"
@@ -513,41 +535,109 @@ export function WeekView({
           ›
         </button>
       </div>
-      {days.map((d) => {
-        const evs = eventsForDay(state, d);
-        const rel = relativeLabel(d);
-        return (
-          <div key={d}>
+
+      {/* Day headers */}
+      <div className="flex px-2">
+        <div style={{ width: WGUTTER }} className="shrink-0" />
+        {days.map((d) => {
+          const { dow, num } = fmtDayShort(d);
+          const today = isToday(d);
+          return (
             <button
+              key={d}
               onClick={() => onPickDay(d)}
-              className="flex items-center gap-2 mb-1.5 w-full"
+              className={`flex-1 min-w-0 flex flex-col items-center py-1 mx-[1px] rounded-lg ${
+                today ? 'bg-ink text-white' : 'text-slate-500'
+              }`}
             >
-              <span
-                className={`text-[15px] font-bold ${isToday(d) ? 'text-ink' : 'text-slate-700'}`}
-              >
-                {rel || fmtDayLong(d)}
-              </span>
-              {isToday(d) && (
-                <span className="text-[10px] font-bold bg-ink text-white px-1.5 py-0.5 rounded-full">
-                  TODAY
-                </span>
-              )}
-              <span className="text-[12px] text-slate-300 ml-auto">
-                {evs.length ? `${evs.length} plan${evs.length > 1 ? 's' : ''}` : ''}
-              </span>
+              <span className="text-[10px] font-medium leading-none">{dow}</span>
+              <span className="text-[15px] font-bold leading-tight">{num}</span>
             </button>
-            {evs.length === 0 ? (
-              <div className="text-[13px] text-slate-300 pl-1 pb-1">Nothing planned</div>
-            ) : (
-              <div className="space-y-2">
-                {evs.map((e) => (
-                  <EventCard key={e.id} ev={e} me={me} dispatch={dispatch} onEdit={onEdit} />
-                ))}
+          );
+        })}
+      </div>
+
+      {/* Grid */}
+      <div
+        className="relative mx-2 mt-1 rounded-xl border border-slate-100 bg-white overflow-hidden"
+        style={{ height: total }}
+      >
+        {/* Hour lines + labels */}
+        {hours.map((h) => {
+          const y = (h - WH0) * WHPX;
+          return (
+            <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: y }}>
+              <span
+                className="text-[9px] text-slate-400 leading-none -mt-1 pl-1"
+                style={{ width: WGUTTER }}
+              >
+                {h < WH1 ? weekHourLabel(h) : ''}
+              </span>
+              <span className="flex-1 border-t border-slate-100" />
+            </div>
+          );
+        })}
+
+        {/* Day columns with positioned events */}
+        <div className="absolute inset-0 flex" style={{ left: WGUTTER }}>
+          {days.map((d) => {
+            const evs = eventsForDay(state, d);
+            const lanes = layoutLanes(evs);
+            const today = isToday(d);
+            return (
+              <div
+                key={d}
+                className={`relative flex-1 min-w-0 border-l border-slate-100 ${
+                  today ? 'bg-indigo-50/50' : ''
+                }`}
+              >
+                {evs.map((ev) => {
+                  const meta = CATEGORY_META[ev.category];
+                  const s = minutesOf(ev.start);
+                  const top = (s - WH0 * 60) * WPX_PER_MIN;
+                  const h = Math.max(15, ev.durationMin * WPX_PER_MIN - 2);
+                  const pl = lanes.get(ev.id) ?? { lane: 0, cols: 1 };
+                  const w = 100 / pl.cols;
+                  return (
+                    <button
+                      key={ev.id}
+                      onClick={() => onEdit(ev)}
+                      style={{
+                        top,
+                        height: h,
+                        left: `${pl.lane * w}%`,
+                        width: `calc(${w}% - 1px)`,
+                        background: `${meta.color}22`,
+                        borderLeft: `3px solid ${meta.color}`,
+                      }}
+                      className="absolute rounded-[5px] overflow-hidden px-0.5 pt-0.5 text-left leading-none"
+                    >
+                      <span className="block truncate text-[9px] font-bold text-slate-700">
+                        {meta.emoji}
+                        {h > 24 ? ` ${ev.title}` : ''}
+                      </span>
+                      {h > 42 && (
+                        <span className="block truncate text-[8px] text-slate-500 mt-0.5">
+                          {fmtTime(ev.start)}
+                        </span>
+                      )}
+                      {ev.status === 'pending' && (
+                        <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      )}
+                      {ev.fixed && (
+                        <span className="absolute bottom-0 right-0.5 text-[7px]">🔒</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      </div>
+      <div className="text-center text-[11px] text-slate-400 mt-2 px-4">
+        Tap a day to open it · tap an event to edit
+      </div>
     </div>
   );
 }
