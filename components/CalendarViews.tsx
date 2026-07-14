@@ -14,6 +14,7 @@ import {
   fmtMonthYear,
   monthShort,
   addDays,
+  todayISO,
 } from '@/lib/dates';
 import { AvatarStack } from './ui';
 
@@ -57,14 +58,33 @@ export function DayStrip({
   selected: string;
   onSelect: (d: string) => void;
 }) {
-  const start = addDays(selected, -3);
-  const days = Array.from({ length: 14 }, (_, i) => addDays(start, i));
+  // A long window anchored to today (a week back, ~3 months ahead), stretched
+  // to include the selected day if navigation went beyond it.
+  const today = todayISO();
+  const start = selected < addDays(today, -7) ? addDays(selected, -7) : addDays(today, -7);
+  const end = selected > addDays(today, 90) ? addDays(selected, 14) : addDays(today, 90);
+  const days: string[] = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) days.push(d);
+
+  // Keep the selected day in view (centered on first paint, smooth after).
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    const el = scrollerRef.current?.querySelector<HTMLElement>(`[data-day="${selected}"]`);
+    el?.scrollIntoView({
+      inline: 'center',
+      block: 'nearest',
+      behavior: mountedRef.current ? 'smooth' : 'auto',
+    });
+    mountedRef.current = true;
+  }, [selected]);
+
   return (
     <div>
       <div className="px-4 pt-1.5 text-[13px] font-bold text-slate-500">
         {fmtMonthYear(selected)}
       </div>
-      <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 pt-1 pb-2">
+      <div ref={scrollerRef} className="flex gap-2 overflow-x-auto no-scrollbar px-4 pt-1 pb-2">
         {days.map((d, i) => {
           const { dow, num } = fmtDayShort(d);
           const active = d === selected;
@@ -72,6 +92,7 @@ export function DayStrip({
           return (
             <button
               key={d}
+              data-day={d}
               onClick={() => onSelect(d)}
               className={`shrink-0 w-12 rounded-2xl pt-1.5 pb-1.5 flex flex-col items-center gap-0.5 ${
                 active ? 'bg-ink text-white' : 'bg-white text-slate-500'

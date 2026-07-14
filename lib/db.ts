@@ -5,6 +5,7 @@ import { seedState } from './seed';
 // Shared state is stored as a single JSONB row keyed by household id.
 const HOUSEHOLD = 'family';
 const AUTH_ROW = 'auth';
+const HISTORY_ROW = 'history';
 
 export interface AuthData {
   pins: Record<string, string>; // user -> "salt:hash"
@@ -13,6 +14,7 @@ export interface AuthData {
 let pool: Pool | null = null;
 let memory: AppState | null = null;
 let memoryAuth: AuthData | null = null;
+let memoryHistory: AppState[] | null = null;
 
 function getPool(): Pool | null {
   if (!process.env.DATABASE_URL) return null;
@@ -71,6 +73,32 @@ export async function saveState(state: AppState): Promise<void> {
     `INSERT INTO app_state (id, data, updated_at) VALUES ($1, $2, now())
      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
     [HOUSEHOLD, state]
+  );
+}
+
+export async function loadHistory(): Promise<AppState[]> {
+  const p = getPool();
+  if (!p) {
+    if (!memoryHistory) memoryHistory = [];
+    return memoryHistory;
+  }
+  await ensureTable(p);
+  const res = await p.query('SELECT data FROM app_state WHERE id = $1', [HISTORY_ROW]);
+  if (res.rows.length === 0) return [];
+  return (res.rows[0].data as AppState[]) ?? [];
+}
+
+export async function saveHistory(history: AppState[]): Promise<void> {
+  const p = getPool();
+  if (!p) {
+    memoryHistory = history;
+    return;
+  }
+  await ensureTable(p);
+  await p.query(
+    `INSERT INTO app_state (id, data, updated_at) VALUES ($1, $2, now())
+     ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+    [HISTORY_ROW, JSON.stringify(history)]
   );
 }
 

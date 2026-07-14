@@ -59,6 +59,8 @@ export interface AppState {
   backlog: BacklogItem[];
   notifications: AppNotification[];
   version: number;
+  // Set on API responses only (whether an undo snapshot exists); never persisted.
+  canUndo?: boolean;
 }
 
 export function emptyState(): AppState {

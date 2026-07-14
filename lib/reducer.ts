@@ -26,7 +26,9 @@ export type Action =
   | { type: 'deleteBacklog'; id: string }
   | { type: 'scheduleBacklog'; id: string; day: string; start: string }
   | { type: 'markRead'; user: UserName }
-  | { type: 'clearAll'; by: UserName };
+  | { type: 'clearAll'; by: UserName }
+  // Handled in the action route (restores a snapshot); never reaches reduce().
+  | { type: 'undo' };
 
 function notify(state: AppState, text: string) {
   state.notifications.unshift({

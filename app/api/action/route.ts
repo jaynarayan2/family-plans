@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadState, saveState } from '@/lib/db';
+import { loadState, saveState, loadHistory, saveHistory } from '@/lib/db';
 import { reduce, Action } from '@/lib/reducer';
+
+const HISTORY_MAX = 20;
 
 export const dynamic = 'force-dynamic';
 
@@ -17,9 +19,27 @@ export async function POST(req: NextRequest) {
 
   const run = chain.then(async () => {
     const prev = await loadState();
+
+    if (action.type === 'undo') {
+      const history = await loadHistory();
+      const snapshot = history.pop();
+      if (!snapshot) return { ...prev, canUndo: false };
+      // Bump past the current version so polling clients accept the restore.
+      snapshot.version = (prev.version || 0) + 1;
+      await saveState(snapshot);
+      await saveHistory(history);
+      return { ...snapshot, canUndo: history.length > 0 };
+    }
+
     const next = reduce(prev, action);
     await saveState(next);
-    return next;
+    // markRead is chatty and not worth undoing; everything else is undoable.
+    const history = await loadHistory();
+    if (action.type !== 'markRead') {
+      history.push(prev);
+      await saveHistory(history.slice(-HISTORY_MAX));
+    }
+    return { ...next, canUndo: history.length > 0 };
   });
   // keep the chain alive even if this action throws
   chain = run.catch(() => {});

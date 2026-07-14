@@ -122,6 +122,15 @@ export default function Home() {
           <div className="text-[12px] text-slate-400 leading-none">Family Plans</div>
           <div className="font-extrabold text-[17px] leading-tight">Hi {me} {c.emoji}</div>
         </div>
+        {state.canUndo && (
+          <button
+            onClick={() => dispatch({ type: 'undo' })}
+            aria-label="Undo last change"
+            className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-lg active:scale-90 transition"
+          >
+            ↩️
+          </button>
+        )}
         <button
           onClick={() => setNotifOpen(true)}
           className="relative w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-lg"
