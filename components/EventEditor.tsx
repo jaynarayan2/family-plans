@@ -338,7 +338,19 @@ export function EventEditor({
         </div>
       </fieldset>
 
-      <div className="flex gap-2 mt-4">
+      {e && !isFixedLocked && (
+        <button
+          onClick={() => {
+            dispatch({ type: 'unscheduleEvent', id: e.id, by: me });
+            onClose();
+          }}
+          className="w-full mt-4 py-3 rounded-xl bg-amber-50 text-amber-700 font-semibold text-[15px]"
+        >
+          💡 Move to backlog
+        </button>
+      )}
+
+      <div className="flex gap-2 mt-3">
         {e && (
           <button
             onClick={del}

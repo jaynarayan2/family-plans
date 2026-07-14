@@ -25,6 +25,7 @@ export type Action =
   | { type: 'updateBacklog'; id: string; patch: Partial<BacklogItem> }
   | { type: 'deleteBacklog'; id: string }
   | { type: 'scheduleBacklog'; id: string; day: string; start: string }
+  | { type: 'unscheduleEvent'; id: string; by: UserName }
   | { type: 'markRead'; user: UserName }
   | { type: 'clearAll'; by: UserName }
   // Handled in the action route (restores a snapshot); never reaches reduce().
@@ -146,6 +147,28 @@ export function reduce(prev: AppState, action: Action): AppState {
         state.backlog = state.backlog.filter((b) => b.id !== action.id);
         notify(state, `${item.createdBy} scheduled “${item.title}” for ${fmtDay(action.day)}`);
       }
+      break;
+    }
+    case 'unscheduleEvent': {
+      const ev = state.events.find((e) => e.id === action.id);
+      if (!ev || ev.fixed) break; // fixed events can't be moved off the calendar
+      const item: BacklogItem = {
+        id: genId('b'),
+        title: ev.title,
+        category: ev.category,
+        owner: ev.owner,
+        participants: ev.participants,
+        durationMin: ev.durationMin,
+        // Backlog items have no location field — keep it in the notes.
+        notes: [ev.notes, ev.location ? `📍 ${ev.location}` : '']
+          .filter(Boolean)
+          .join('\n') || undefined,
+        createdBy: ev.createdBy,
+        createdAt: Date.now(),
+      };
+      state.backlog.push(item);
+      state.events = state.events.filter((e) => e.id !== action.id);
+      notify(state, `${action.by} moved “${ev.title}” back to the backlog`);
       break;
     }
     case 'markRead': {
